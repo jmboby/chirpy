@@ -24,10 +24,13 @@ func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	hits := cfg.fileserverHits.Load()
-	html := fmt.Sprintf(
-		"<html>\n  <body>\n    <h1>Welcome, Chirpy Admin</h1>\n    <p>Chirpy has been visited %d times!</p>\n  </body>\n</html>",
-		hits,
-	)
+	html := fmt.Sprintf(`<html>
+               <body>
+               <h1>Welcome, Chirpy Admin</h1>
+               <p>Chirpy has been visited %d times!</p>
+               </body>
+       </html>`, hits)
+	
 	w.Write([]byte(html))
 }
 
