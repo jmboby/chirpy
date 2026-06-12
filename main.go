@@ -4,6 +4,8 @@ import ( // Begins an import block to include external packages
 	"net/http" // Imports the standard library's HTTP package, which provides HTTP client and server implementations
 	"sync/atomic" // Imports the atomic package, which provides low-level atomic memory primitives for synchronization
 	"fmt" // Imports the fmt package, which provides formatted I/O functions
+	"encoding/json" 
+	"strings"
 )
 
 //Create a struct in main.go that will hold any stateful, in-memory data we'll need to keep track of. In our case, we just need to keep track of the number of requests we've received.
@@ -42,6 +44,23 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
     w.Write([]byte("Hits reset to 0\n"))
 }
 
+type chirpRequest struct {
+    Body string `json:"body"`
+}
+type chirpResponse struct {
+    CleanedBody string `json:"cleaned_body"`
+}
+func cleanProfanity(text string) string {
+	words := strings.Split(text, " ")
+	for i, word := range words {
+		lowerWord := strings.ToLower(word)
+		if lowerWord == "kerfuffle" || lowerWord == "sharbert" || lowerWord == "fornax" {
+			words[i] = "****" // We are acting on the actual index of a slice from words here, word is just a copy of the slice as per range values
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 func main() { // Defines the main function, which is the entry point of the Go program
 	apiCfg := &apiConfig{}
 	mux := http.NewServeMux() // Creates a new HTTP request multiplexer (router) that matches incoming requests against registered handlers
@@ -58,6 +77,31 @@ func main() { // Defines the main function, which is the entry point of the Go p
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8") // normal header
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+	})
+
+	mux.HandleFunc("POST /api/validate_chirp", func(w http.ResponseWriter, req *http.Request) {
+		var chirp chirpRequest
+		err := json.NewDecoder(req.Body).Decode(&chirp)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+        	w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"Bad JSON Request"}`))
+			return
+		}
+		if len(chirp.Body) > 140 {
+			w.Header().Set("Content-Type", "application/json")
+        	w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"Length too long"}`))
+			return
+		}
+
+		cleaned := cleanProfanity(chirp.Body)
+
+    	w.Header().Set("Content-Type", "application/json")
+    	w.WriteHeader(http.StatusOK)
+    	resp := chirpResponse{CleanedBody: cleaned}
+		json.NewEncoder(w).Encode(resp)
+
 	})
 
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
