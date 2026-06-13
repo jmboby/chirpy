@@ -39,3 +39,4 @@ go.work.sum
 /build/
 /dist/
 /chirpy
+/server
