@@ -44,6 +44,7 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
     w.Write([]byte("Hits reset to 0\n"))
 }
 
+// Validate, clean and respond to Chirps
 type chirpRequest struct {
     Body string `json:"body"`
 }
@@ -59,6 +60,29 @@ func cleanProfanity(text string) string {
 		}
 	}
 	return strings.Join(words, " ")
+}
+
+func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Request) {
+    var chirp chirpRequest
+		err := json.NewDecoder(req.Body).Decode(&chirp)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+        	w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"Bad JSON Request"}`))
+			return
+		}
+		if len(chirp.Body) > 140 {
+			w.Header().Set("Content-Type", "application/json")
+        	w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"Length too long"}`))
+			return
+		}
+
+		cleaned := cleanProfanity(chirp.Body)
+		resp := chirpResponse{CleanedBody: cleaned}
+		w.Header().Set("Content-Type", "application/json")
+    	w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
 }
 
 func main() { // Defines the main function, which is the entry point of the Go program
@@ -79,30 +103,7 @@ func main() { // Defines the main function, which is the entry point of the Go p
 		w.Write([]byte("OK"))
 	})
 
-	mux.HandleFunc("POST /api/validate_chirp", func(w http.ResponseWriter, req *http.Request) {
-		var chirp chirpRequest
-		err := json.NewDecoder(req.Body).Decode(&chirp)
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-        	w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"Bad JSON Request"}`))
-			return
-		}
-		if len(chirp.Body) > 140 {
-			w.Header().Set("Content-Type", "application/json")
-        	w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"Length too long"}`))
-			return
-		}
-
-		cleaned := cleanProfanity(chirp.Body)
-
-    	w.Header().Set("Content-Type", "application/json")
-    	w.WriteHeader(http.StatusOK)
-    	resp := chirpResponse{CleanedBody: cleaned}
-		json.NewEncoder(w).Encode(resp)
-
-	})
+	mux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
 
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
