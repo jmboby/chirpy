@@ -45,12 +45,37 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 // Validate, clean and respond to Chirps
+// ---- Request / Response Types ----
+
 type chirpRequest struct {
     Body string `json:"body"`
 }
+
+type errorResponse struct {
+    Error string `json:"error"`
+}
+
 type chirpResponse struct {
+    Valid       bool   `json:"valid"`
     CleanedBody string `json:"cleaned_body"`
 }
+
+// ---- Response Helpers ----
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    w.WriteHeader(code)
+
+    if err := json.NewEncoder(w).Encode(payload); err != nil {
+        // Fallback if encoding fails
+        http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
+    }
+}
+
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+    respondWithJSON(w, code, errorResponse{Error: msg})
+}
+
 func cleanProfanity(text string) string {
 	words := strings.Split(text, " ")
 	for i, word := range words {
@@ -62,27 +87,35 @@ func cleanProfanity(text string) string {
 	return strings.Join(words, " ")
 }
 
-func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Request) {
-    var chirp chirpRequest
-		err := json.NewDecoder(req.Body).Decode(&chirp)
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-        	w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"Bad JSON Request"}`))
-			return
-		}
-		if len(chirp.Body) > 140 {
-			w.Header().Set("Content-Type", "application/json")
-        	w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"Length too long"}`))
-			return
-		}
 
-		cleaned := cleanProfanity(chirp.Body)
-		resp := chirpResponse{CleanedBody: cleaned}
-		w.Header().Set("Content-Type", "application/json")
-    	w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+// ---- Handler ----
+
+func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Request) {
+    defer req.Body.Close()
+
+    var chirp chirpRequest
+
+    if err := json.NewDecoder(req.Body).Decode(&chirp); err != nil {
+        respondWithError(w, http.StatusBadRequest, "Invalid JSON body")
+        return
+    }
+
+    if len(chirp.Body) == 0 {
+        respondWithError(w, http.StatusBadRequest, "Body cannot be empty")
+        return
+    }
+
+    if len(chirp.Body) > 140 {
+        respondWithError(w, http.StatusBadRequest, "Chirp is too long (max 140 characters)")
+        return
+    }
+
+	cleaned := cleanProfanity(chirp.Body)
+	
+	respondWithJSON(w, http.StatusOK, chirpResponse{
+    Valid:       true,
+    CleanedBody: cleaned,
+	})
 }
 
 func main() { // Defines the main function, which is the entry point of the Go program
