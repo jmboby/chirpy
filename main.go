@@ -6,11 +6,15 @@ import ( // Begins an import block to include external packages
 	"fmt" // Imports the fmt package, which provides formatted I/O functions
 	"encoding/json" 
 	"strings"
+
+	_ "github.com/lib/pq"
+	"chirpy/internal/database"
 )
 
 //Create a struct in main.go that will hold any stateful, in-memory data we'll need to keep track of. In our case, we just need to keep track of the number of requests we've received.
 type apiConfig struct {
 fileserverHits atomic.Int32
+dbQueries      *database.Queries
 }
 
 // write a new middleware method on a *apiConfig that increments the fileserverHits counter every time it's called.
@@ -119,7 +123,9 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Requ
 }
 
 func main() { // Defines the main function, which is the entry point of the Go program
-	apiCfg := &apiConfig{}
+	apiCfg := &apiConfig{
+		dbQueries: database.New(db),
+	}
 	mux := http.NewServeMux() // Creates a new HTTP request multiplexer (router) that matches incoming requests against registered handlers
 	// Handler (noun) = an object that implements the http.Handler interface (has a ServeHTTP method)
 	// Handle (verb) = the method used to register a handler for a specific URL pattern
