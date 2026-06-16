@@ -6,8 +6,12 @@ import ( // Begins an import block to include external packages
 	"fmt" // Imports the fmt package, which provides formatted I/O functions
 	"encoding/json" 
 	"strings"
+	"os"
+	"log"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"database/sql"
 	"chirpy/internal/database"
 )
 
@@ -123,6 +127,13 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Requ
 }
 
 func main() { // Defines the main function, which is the entry point of the Go program
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	apiCfg := &apiConfig{
 		dbQueries: database.New(db),
 	}
