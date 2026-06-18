@@ -8,6 +8,7 @@ import ( // Begins an import block to include external packages
 	"strings"
 	"os"
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -68,6 +69,13 @@ type chirpResponse struct {
     CleanedBody string `json:"cleaned_body"`
 }
 
+type userResponse struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
+
 // ---- Response Helpers ----
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
@@ -96,7 +104,7 @@ func cleanProfanity(text string) string {
 }
 
 
-// ---- Handler ----
+// ---- Validate Chirp Handler ----
 
 func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Request) {
     defer req.Body.Close()
@@ -129,7 +137,6 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Requ
 // Create Db User
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Name  string `json:"name"`
 		Email string `json:"email"`
 	}
 
@@ -141,19 +148,19 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
-		Name:  params.Name,
-		Email: params.Email,
-	})
+	user, err := cfg.dbQueries.CreateUser(r.Context(), params.Email)
 	if err != nil {
 		log.Printf("Error creating user: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	respondWithJSON(w, http.StatusCreated, userResponse{
+		ID:        user.ID.String(),
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
 }
 
 func main() { // Defines the main function, which is the entry point of the Go program
