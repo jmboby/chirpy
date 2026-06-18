@@ -53,7 +53,6 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
     w.Write([]byte("Hits reset to 0\n"))
 }
 
-// Validate, clean and respond to Chirps
 // ---- Request / Response Types ----
 
 type chirpRequest struct {
@@ -134,7 +133,8 @@ func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Requ
 	})
 }
 
-// Create Db User
+// ---------- Create Db User -----------
+
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email string `json:"email"`
@@ -144,14 +144,19 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	params := parameters{}
 	if err := decoder.Decode(&params); err != nil {
 		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "JSON Body is empty or malformed")
+		return
+	}
+
+	if params.Email == "" {
+		respondWithError(w, http.StatusBadRequest, "Email is required")
 		return
 	}
 
 	user, err := cfg.dbQueries.CreateUser(r.Context(), params.Email)
 	if err != nil {
 		log.Printf("Error creating user: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "Could not create user")
 		return
 	}
 
