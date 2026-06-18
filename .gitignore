@@ -41,3 +41,6 @@ go.work.sum
 /dist/
 /chirpy
 /server
+
+# Dev Containers
+.devcontainer/
