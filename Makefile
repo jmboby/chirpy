@@ -21,3 +21,9 @@ test-validate-invalid-json:
 
 test-metrics:
 	curl -i $(APP_URL)/admin/metrics
+
+test-app:
+	curl -i $(APP_URL)/app/
+
+test-metrics-reset:
+	curl -iX POST $(APP_URL)/admin/reset 

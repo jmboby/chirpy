@@ -20,6 +20,7 @@ import ( // Begins an import block to include external packages
 type apiConfig struct {
 fileserverHits atomic.Int32
 dbQueries      *database.Queries
+platform	   string			
 }
 
 // write a new middleware method on a *apiConfig that increments the fileserverHits counter every time it's called.
@@ -47,10 +48,23 @@ func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, req *http.Request) {
 
 func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
     w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-    w.WriteHeader(http.StatusOK)
     
+	if cfg.platform != "dev" {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("This is not a dev environment, you cannot reset metrics or wipe the users table"))
+		return
+	}
     cfg.fileserverHits.Store(0)
-    w.Write([]byte("Hits reset to 0\n"))
+	
+	err := cfg.dbQueries.DeleteUsers(req.Context())
+	if err != nil {
+		log.Printf("Error deleting users: %s", err)
+		respondWithError(w, http.StatusInternalServerError, "Could not delete users")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+    w.Write([]byte("Metrics hits reset to 0, and all users have been deleted from the db"))
+
 }
 
 // ---- Request / Response Types ----
@@ -103,9 +117,9 @@ func cleanProfanity(text string) string {
 }
 
 
-// ---- Validate Chirp Handler ----
+// ---- Chirp Handler ----
 
-func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, req *http.Request) {
+func (cfg *apiConfig) ChirpHandler(w http.ResponseWriter, req *http.Request) {
     defer req.Body.Close()
 
     var chirp chirpRequest
@@ -171,6 +185,8 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 func main() { // Defines the main function, which is the entry point of the Go program
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
+	platform := os.Getenv("PLATFORM")
+	
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal(err)
@@ -178,6 +194,7 @@ func main() { // Defines the main function, which is the entry point of the Go p
 
 	apiCfg := &apiConfig{
 		dbQueries: database.New(db),
+		platform: platform,
 	}
 	mux := http.NewServeMux() // Creates a new HTTP request multiplexer (router) that matches incoming requests against registered handlers
 	// Handler (noun) = an object that implements the http.Handler interface (has a ServeHTTP method)
@@ -195,7 +212,7 @@ func main() { // Defines the main function, which is the entry point of the Go p
 		w.Write([]byte("OK"))
 	})
 
-	mux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
+	mux.HandleFunc("POST /api/chirps", apiCfg.ChirpHandler)
 	mux.HandleFunc("POST /api/users", apiCfg.createUser)
 
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
