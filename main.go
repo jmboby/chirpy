@@ -1,19 +1,21 @@
 package main // Declares that this file belongs to the 'main' package, which is required for executable programs
 
 import ( // Begins an import block to include external packages
-	"net/http" // Imports the standard library's HTTP package, which provides HTTP client and server implementations
-	"sync/atomic" // Imports the atomic package, which provides low-level atomic memory primitives for synchronization
+	"encoding/json"
 	"fmt" // Imports the fmt package, which provides formatted I/O functions
-	"encoding/json" 
-	"strings"
-	"os"
 	"log"
+	"net/http" // Imports the standard library's HTTP package, which provides HTTP client and server implementations
+	"os"
+	"strings"
+	"sync/atomic" // Imports the atomic package, which provides low-level atomic memory primitives for synchronization
 	"time"
 
+	"chirpy/internal/database"
+	"database/sql"
+
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
-	"database/sql"
-	"chirpy/internal/database"
 )
 
 //Create a struct in main.go that will hold any stateful, in-memory data we'll need to keep track of. In our case, we just need to keep track of the number of requests we've received.
@@ -71,6 +73,7 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
 
 type chirpRequest struct {
     Body string `json:"body"`
+	UserID string `json:"user_id"`
 }
 
 type errorResponse struct {
@@ -139,9 +142,20 @@ func (cfg *apiConfig) ChirpHandler(w http.ResponseWriter, req *http.Request) {
         return
     }
 
+	if err := json.NewDecoder(req.UserID).Decode(&chirp); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid JSON userid")
+        return
+	}
 	cleaned := cleanProfanity(chirp.Body)
 	
-	respondWithJSON(w, http.StatusOK, chirpResponse{
+	chirpDB, err := cfg.dbQueries.CreateChirp(req.Context(), database.CreateChirpParams{Body: cleaned, UserID: chirpRequest.User_ID})
+	if err != nil {
+		log.Printf("Error publishing Chirp: %s", err)
+		respondWithError(w, http.StatusInternalServerError, "Could not publish the Chirp")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, chirpDB{
     Valid:       true,
     CleanedBody: cleaned,
 	})
