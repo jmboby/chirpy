@@ -81,8 +81,11 @@ type errorResponse struct {
 }
 
 type chirpResponse struct {
-    Valid       bool   `json:"valid"`
-    CleanedBody string `json:"cleaned_body"`
+    ID        string   `json:"id"`
+    CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body	  string	`json:"body"`
+	UserID	  string    `json:"user_id"`
 }
 
 type userResponse struct {
@@ -126,7 +129,7 @@ func (cfg *apiConfig) ChirpHandler(w http.ResponseWriter, req *http.Request) {
     defer req.Body.Close()
 
     var chirp chirpRequest
-
+	
     if err := json.NewDecoder(req.Body).Decode(&chirp); err != nil {
         respondWithError(w, http.StatusBadRequest, "Invalid JSON body")
         return
@@ -142,22 +145,27 @@ func (cfg *apiConfig) ChirpHandler(w http.ResponseWriter, req *http.Request) {
         return
     }
 
-	if err := json.NewDecoder(req.UserID).Decode(&chirp); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid JSON userid")
-        return
-	}
 	cleaned := cleanProfanity(chirp.Body)
 	
-	chirpDB, err := cfg.dbQueries.CreateChirp(req.Context(), database.CreateChirpParams{Body: cleaned, UserID: chirpRequest.User_ID})
+	userID, err := uuid.Parse(chirp.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user_id")
+		return
+	}
+
+	chirpDB, err := cfg.dbQueries.CreateChirp(req.Context(), database.CreateChirpParams{Body: cleaned, UserID: userID})
 	if err != nil {
 		log.Printf("Error publishing Chirp: %s", err)
 		respondWithError(w, http.StatusInternalServerError, "Could not publish the Chirp")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, chirpDB{
-    Valid:       true,
-    CleanedBody: cleaned,
+	respondWithJSON(w, http.StatusCreated, chirpResponse{
+    	ID: 		chirpDB.ID.String(),
+    	CreatedAt:	chirpDB.CreatedAt,
+		UpdatedAt:  chirpDB.UpdatedAt,
+		Body: 		chirpDB.Body,
+		UserID: 	chirpDB.UserID.String(),
 	})
 }
 

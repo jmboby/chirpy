@@ -25,21 +25,21 @@ func TestCleanProfanity(t *testing.T) {
     }
 }
 
-func TestValidateChirpHandler(t *testing.T) {
+func TestChirpHandler(t *testing.T) {
 	apiCfg := &apiConfig{}
 
-	body := `{"body":"This is a kerfuffle opinion"}`
+	body := `{"body":"This is a kerfuffle opinion", "user_id":"123e4567-e89b-12d3-a456-426614174000"}`
 
-	req := httptest.NewRequest("POST", "/api/validate_chirp", strings.NewReader(body))
+	req := httptest.NewRequest("POST", "/api/chirps", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
 
 	//Call the handler directly with the write arg being rec and req our request above
-	apiCfg.validateChirpHandler(rec, req)
+	apiCfg.ChirpHandler(rec, req)
 
 	// Check status code
-	if rec.Code != http.StatusOK {
+	if rec.Code != http.StatusCreated {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
@@ -49,7 +49,7 @@ func TestValidateChirpHandler(t *testing.T) {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if resp.CleanedBody != "This is a **** opinion" {
-		t.Errorf(("expected %q, got %q"), "This is a **** opinion", resp.CleanedBody)
+	if resp.Body != "This is a **** opinion" {
+		t.Errorf(("expected %q, got %q"), "This is a **** opinion", resp.Body)
 	}
 }
