@@ -1,6 +1,6 @@
 APP_URL := http://localhost:8080
 
-.PHONY: test test-validate-valid test-validate-too-long test-validate-invalid-json test-metrics
+.PHONY: test test-validatevalid test-validate-too-long test-validate-invalid-json test-metrics sql-regenerate
 
 test: test-validate-valid test-validate-too-long test-validate-invalid-json test-metrics
 
@@ -27,3 +27,6 @@ test-app:
 
 test-metrics-reset:
 	curl -iX POST $(APP_URL)/admin/reset 
+
+sql-regenerate:
+	sqlc generate

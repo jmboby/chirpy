@@ -169,6 +169,32 @@ func (cfg *apiConfig) ChirpHandler(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// ---- GetChirps Handler ----
+
+func (cfg *apiConfig) GetChirpsHandler(w http.ResponseWriter, req *http.Request) {
+    defer req.Body.Close()
+
+	chirps, err := cfg.dbQueries.GetChirps(req.Context())
+	if err != nil {
+		log.Printf("Error fetching chirps: %s", err)
+		respondWithError(w, http.StatusInternalServerError, "Could not fetch chirps")
+		return
+	}
+
+	response := make([]chirpResponse, 0, len(chirps))
+	for _, c := range chirps {
+    response = append(response, chirpResponse{
+        ID:        c.ID.String(),
+        CreatedAt: c.CreatedAt,
+        UpdatedAt: c.UpdatedAt,
+        Body:      c.Body,
+        UserID:    c.UserID.String(),
+    })
+	}
+	respondWithJSON(w, http.StatusOK, response)
+}
+
+
 // ---------- Create Db User -----------
 
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +261,7 @@ func main() { // Defines the main function, which is the entry point of the Go p
 	})
 
 	mux.HandleFunc("POST /api/chirps", apiCfg.ChirpHandler)
+	mux.HandleFunc("GET /api/chirps", apiCfg.GetChirpsHandler)
 	mux.HandleFunc("POST /api/users", apiCfg.createUser)
 
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
