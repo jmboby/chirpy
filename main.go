@@ -2,6 +2,7 @@ package main // Declares that this file belongs to the 'main' package, which is 
 
 import ( // Begins an import block to include external packages
 	"encoding/json"
+	"errors"
 	"fmt" // Imports the fmt package, which provides formatted I/O functions
 	"log"
 	"net/http" // Imports the standard library's HTTP package, which provides HTTP client and server implementations
@@ -18,11 +19,11 @@ import ( // Begins an import block to include external packages
 	_ "github.com/lib/pq"
 )
 
-//Create a struct in main.go that will hold any stateful, in-memory data we'll need to keep track of. In our case, we just need to keep track of the number of requests we've received.
+// Create a struct in main.go that will hold any stateful, in-memory data we'll need to keep track of. In our case, we just need to keep track of the number of requests we've received.
 type apiConfig struct {
-fileserverHits atomic.Int32
-dbQueries      *database.Queries
-platform	   string			
+	fileserverHits atomic.Int32
+	dbQueries      *database.Queries
+	platform       string
 }
 
 // write a new middleware method on a *apiConfig that increments the fileserverHits counter every time it's called.
@@ -44,20 +45,20 @@ func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, req *http.Request) {
                <p>Chirpy has been visited %d times!</p>
                </body>
        </html>`, hits)
-	
+
 	w.Write([]byte(html))
 }
 
 func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
-    w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-    
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
 	if cfg.platform != "dev" {
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte("This is not a dev environment, you cannot reset metrics or wipe the users table"))
 		return
 	}
-    cfg.fileserverHits.Store(0)
-	
+	cfg.fileserverHits.Store(0)
+
 	err := cfg.dbQueries.DeleteUsers(req.Context())
 	if err != nil {
 		log.Printf("Error deleting users: %s", err)
@@ -65,27 +66,27 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-    w.Write([]byte("Metrics hits reset to 0, and all users have been deleted from the db"))
+	w.Write([]byte("Metrics hits reset to 0, and all users have been deleted from the db"))
 
 }
 
 // ---- Request / Response Types ----
 
 type chirpRequest struct {
-    Body string `json:"body"`
+	Body   string `json:"body"`
 	UserID string `json:"user_id"`
 }
 
 type errorResponse struct {
-    Error string `json:"error"`
+	Error string `json:"error"`
 }
 
 type chirpResponse struct {
-    ID        string   `json:"id"`
-    CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	Body	  string	`json:"body"`
-	UserID	  string    `json:"user_id"`
+	Body      string    `json:"body"`
+	UserID    string    `json:"user_id"`
 }
 
 type userResponse struct {
@@ -98,17 +99,17 @@ type userResponse struct {
 // ---- Response Helpers ----
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-    w.Header().Set("Content-Type", "application/json; charset=utf-8")
-    w.WriteHeader(code)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(code)
 
-    if err := json.NewEncoder(w).Encode(payload); err != nil {
-        // Fallback if encoding fails
-        http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
-    }
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		// Fallback if encoding fails
+		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
+	}
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
-    respondWithJSON(w, code, errorResponse{Error: msg})
+	respondWithJSON(w, code, errorResponse{Error: msg})
 }
 
 func cleanProfanity(text string) string {
@@ -122,31 +123,30 @@ func cleanProfanity(text string) string {
 	return strings.Join(words, " ")
 }
 
-
 // ---- Chirp Handler ----
 
 func (cfg *apiConfig) ChirpHandler(w http.ResponseWriter, req *http.Request) {
-    defer req.Body.Close()
+	defer req.Body.Close()
 
-    var chirp chirpRequest
-	
-    if err := json.NewDecoder(req.Body).Decode(&chirp); err != nil {
-        respondWithError(w, http.StatusBadRequest, "Invalid JSON body")
-        return
-    }
+	var chirp chirpRequest
 
-    if len(chirp.Body) == 0 {
-        respondWithError(w, http.StatusBadRequest, "Body cannot be empty")
-        return
-    }
+	if err := json.NewDecoder(req.Body).Decode(&chirp); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
 
-    if len(chirp.Body) > 140 {
-        respondWithError(w, http.StatusBadRequest, "Chirp is too long (max 140 characters)")
-        return
-    }
+	if len(chirp.Body) == 0 {
+		respondWithError(w, http.StatusBadRequest, "Body cannot be empty")
+		return
+	}
+
+	if len(chirp.Body) > 140 {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long (max 140 characters)")
+		return
+	}
 
 	cleaned := cleanProfanity(chirp.Body)
-	
+
 	userID, err := uuid.Parse(chirp.UserID)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid user_id")
@@ -161,18 +161,18 @@ func (cfg *apiConfig) ChirpHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusCreated, chirpResponse{
-    	ID: 		chirpDB.ID.String(),
-    	CreatedAt:	chirpDB.CreatedAt,
-		UpdatedAt:  chirpDB.UpdatedAt,
-		Body: 		chirpDB.Body,
-		UserID: 	chirpDB.UserID.String(),
+		ID:        chirpDB.ID.String(),
+		CreatedAt: chirpDB.CreatedAt,
+		UpdatedAt: chirpDB.UpdatedAt,
+		Body:      chirpDB.Body,
+		UserID:    chirpDB.UserID.String(),
 	})
 }
 
 // ---- GetChirps Handler ----
 
 func (cfg *apiConfig) GetChirpsHandler(w http.ResponseWriter, req *http.Request) {
-    defer req.Body.Close()
+	defer req.Body.Close()
 
 	chirps, err := cfg.dbQueries.GetChirps(req.Context())
 	if err != nil {
@@ -183,17 +183,47 @@ func (cfg *apiConfig) GetChirpsHandler(w http.ResponseWriter, req *http.Request)
 
 	response := make([]chirpResponse, 0, len(chirps))
 	for _, c := range chirps {
-    response = append(response, chirpResponse{
-        ID:        c.ID.String(),
-        CreatedAt: c.CreatedAt,
-        UpdatedAt: c.UpdatedAt,
-        Body:      c.Body,
-        UserID:    c.UserID.String(),
-    })
+		response = append(response, chirpResponse{
+			ID:        c.ID.String(),
+			CreatedAt: c.CreatedAt,
+			UpdatedAt: c.UpdatedAt,
+			Body:      c.Body,
+			UserID:    c.UserID.String(),
+		})
 	}
 	respondWithJSON(w, http.StatusOK, response)
 }
 
+// ---- GetChirp Handler ----
+
+func (cfg *apiConfig) GetChirpHandler(w http.ResponseWriter, req *http.Request) {
+	chirpIDStr := req.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(chirpIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid chirp id")
+		return
+	}
+
+	chirp, err := cfg.dbQueries.GetChirp(req.Context(), chirpID)
+	if errors.Is(err, sql.ErrNoRows) {
+		respondWithError(w, http.StatusNotFound, "Could not find chirp")
+		return
+	} else if err != nil {
+		log.Printf("Error fetching chirp: %s", err)
+		respondWithError(w, http.StatusInternalServerError, "Could not fetch chirp")
+		return
+	}
+
+	response := chirpResponse{
+		ID:        chirp.ID.String(),
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID.String(),
+	}
+	respondWithJSON(w, http.StatusOK, response)
+}
 
 // ---------- Create Db User -----------
 
@@ -234,7 +264,7 @@ func main() { // Defines the main function, which is the entry point of the Go p
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
-	
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatal(err)
@@ -242,18 +272,18 @@ func main() { // Defines the main function, which is the entry point of the Go p
 
 	apiCfg := &apiConfig{
 		dbQueries: database.New(db),
-		platform: platform,
+		platform:  platform,
 	}
 	mux := http.NewServeMux() // Creates a new HTTP request multiplexer (router) that matches incoming requests against registered handlers
 	// Handler (noun) = an object that implements the http.Handler interface (has a ServeHTTP method)
 	// Handle (verb) = the method used to register a handler for a specific URL pattern
-	 // Wrap the handler - middleware counts the hit, then calls the file server
-    mux.Handle("/app/", apiCfg.middlewareMetricsInc(
-        http.StripPrefix("/app/", http.FileServer(http.Dir("."))),
-    ))
+	// Wrap the handler - middleware counts the hit, then calls the file server
+	mux.Handle("/app/", apiCfg.middlewareMetricsInc(
+		http.StripPrefix("/app/", http.FileServer(http.Dir("."))),
+	))
 	//mux.Handle("/app/", http.StripPrefix("/app/", http.FileServer(http.Dir(".")))) // Registers a file server handler on the root path "/" that serves files from the current directory
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
-	
+
 	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8") // normal header
 		w.WriteHeader(http.StatusOK)
@@ -263,6 +293,7 @@ func main() { // Defines the main function, which is the entry point of the Go p
 	mux.HandleFunc("POST /api/chirps", apiCfg.ChirpHandler)
 	mux.HandleFunc("GET /api/chirps", apiCfg.GetChirpsHandler)
 	mux.HandleFunc("POST /api/users", apiCfg.createUser)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.GetChirpHandler)
 
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
