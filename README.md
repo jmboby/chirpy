@@ -40,6 +40,7 @@ Apply the schema. The first line exports every variable in `.env` into your shel
 ```sh
 set -a; source .env; set +a
 goose -dir sql/schema postgres "$DB_URL" up
+goose -dir sql/schema postgres "$DB_URL" status
 ```
 
 Download Go dependencies and start the app. The app loads `.env` itself.
